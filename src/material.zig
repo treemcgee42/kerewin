@@ -3,38 +3,6 @@ const color = @import("color.zig");
 const math = @import("math/math.zig");
 const HitRecord = @import("object.zig").HitRecord;
 
-pub const Material = struct {
-    ptr: *anyopaque,
-    scatter_fn: *const fn (self: *const anyopaque, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool,
-
-    pub fn init(ptr: anytype) Material {
-        const Ptr = @TypeOf(ptr);
-        const ptr_info = @typeInfo(Ptr);
-
-        if (ptr_info != .Pointer) @compileError("Object.init: ptr must be a pointer");
-        if (ptr_info.Pointer.size != .One) @compileError("Object.init: ptr must be a pointer to a single value");
-
-        const gen = struct {
-            pub fn scatter_impl(pointer: *const anyopaque, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
-                const self: Ptr = @ptrCast(@alignCast(@constCast(pointer)));
-
-                // We want to inline the implementation call to reduce the number of function calls.
-                // This isn't expensive because we only do it once per object.
-                return @call(.always_inline, ptr_info.Pointer.child.scatter, .{ self, r_in, rec, attenuation, scattered });
-            }
-        };
-
-        return .{
-            .ptr = @constCast(ptr),
-            .scatter_fn = gen.scatter_impl,
-        };
-    }
-
-    pub inline fn scatter(self: *const Material, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
-        return self.scatter_fn(self.ptr, r_in, rec, attenuation, scattered);
-    }
-};
-
 const Lambertian = struct {
     albedo: color.Color3,
 
