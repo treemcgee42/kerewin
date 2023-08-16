@@ -173,7 +173,9 @@ pub const Camera = struct {
 
         var j: usize = 0;
         while (j < self.image_height) : (j += 1) {
-            std.debug.print("\rScanlines remaining: {} \n", .{self.image_height - j});
+            const remaining_scanlines = self.image_height - j;
+            const percentage_done = 100.0 * @as(f32, @floatFromInt(j)) / @as(f32, @floatFromInt(self.image_height));
+            std.debug.print("\r[{d:.0}%] Scanlines remaining: {}", .{ percentage_done, remaining_scanlines });
 
             var i: usize = 0;
             while (i < self.image_width) : (i += 1) {
@@ -188,6 +190,6 @@ pub const Camera = struct {
             }
         }
 
-        std.debug.print("\rDone. \n", .{});
+        std.debug.print("\rDone.\n", .{});
     }
 };

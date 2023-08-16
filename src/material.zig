@@ -62,8 +62,7 @@ const Dielectric = struct {
             direction = math.vec.reflect_vec3(unit_direction, rec.normal);
         }
 
-        scattered.origin = rec.p;
-        scattered.direction = direction;
+        scattered.* = math.ray.Ray3.init_with_time(rec.p, direction, r_in.time);
         return true;
     }
 };

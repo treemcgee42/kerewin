@@ -5,8 +5,11 @@ const object = @import("object.zig");
 const camera = @import("camera.zig");
 const material = @import("material.zig");
 const obj = @import("objloader.zig");
+const bvh = @import("bvh.zig");
 
 pub fn main() !void {
+    var timer = try std.time.Timer.start();
+
     // stdout is for the actual output of your application, for example if you
     // are implementing gzip, then only the compressed bytes should be sent to
     // stdout, not any debugging messages.
@@ -27,7 +30,7 @@ pub fn main() !void {
     defer object_factory.deinit();
 
     var world = object.ObjectList.init(allocator, &object_factory);
-    defer world.deinit();
+    // defer world.deinit();
 
     const ground_material = try material_factory.create_Lambertian(color.Color3{ 0.5, 0.5, 0.5 });
     const sb = try object_factory.create_Sphere(math.vec.Point3{ 0.0, -1000.0, 0.0 }, 1000.0, ground_material);
@@ -77,11 +80,19 @@ pub fn main() !void {
     const sphere3 = try object_factory.create_Sphere(math.vec.Point3{ 4.0, 1.0, 0.0 }, 1.0, material3);
     try world.add(sphere3);
 
+    std.debug.print("{} objects\n", .{world.objects.items.len});
+
+    var world_bvh = object.ObjectList.init(allocator, &object_factory);
+    var bvh_node = try object_factory.create_BvhNode_with_list(&world);
+    try world_bvh.add(bvh_node);
+    world.deinit();
+    defer world_bvh.deinit();
+
     // Camera
     const cam_init_options: camera.Camera.InitParams = .{
         .aspect_ratio = 16.0 / 9.0,
         .image_width = 400,
-        .samples_per_pixel = 100,
+        .samples_per_pixel = 10,
         .max_depth = 50,
 
         .vfov = 20.0,
@@ -95,7 +106,10 @@ pub fn main() !void {
         .material_system = &material_factory,
     };
     var cam = camera.Camera.init(cam_init_options);
-    try cam.render(&world, stdout);
+    try cam.render(&world_bvh, stdout);
 
     try bw.flush(); // don't forget to flush!
+
+    const total_time = @as(f64, @floatFromInt(timer.read())) / 1000000000.0;
+    std.debug.print("\nTotal time: {d:.2} seconds\n", .{total_time});
 }

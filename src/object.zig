@@ -1,6 +1,8 @@
 const std = @import("std");
 const math = @import("math/math.zig");
 const MaterialHandle = @import("material.zig").MaterialSystem.MaterialHandle;
+const aabb = @import("aabb.zig");
+const bvh = @import("bvh.zig");
 
 pub const HitRecord = struct {
     p: math.vec.Point3,
@@ -30,24 +32,34 @@ pub const Sphere = struct {
     mat: MaterialHandle,
     is_moving: bool,
     center_vec: math.vec.Vec3,
+    bbox: aabb.Aabb,
 
     fn init_stationary(center: math.vec.Point3, radius: f64, mat: MaterialHandle) Sphere {
+        const rvec = math.vec.Vec3{ radius, radius, radius };
+
         return .{
             .center1 = center,
             .radius = radius,
             .mat = mat,
             .is_moving = false,
             .center_vec = math.vec.Vec3{ 0.0, 0.0, 0.0 },
+            .bbox = aabb.Aabb.init_with_points(center - rvec, center + rvec),
         };
     }
 
     fn init_moving(center1: math.vec.Point3, center2: math.vec.Point3, radius: f64, mat: MaterialHandle) Sphere {
+        const rvec = math.vec.Vec3{ radius, radius, radius };
+        const box1 = aabb.Aabb.init_with_points(center1 - rvec, center1 + rvec);
+        const box2 = aabb.Aabb.init_with_points(center2 - rvec, center2 + rvec);
+        const bbox = aabb.Aabb.init_with_aabbs(&box1, &box2);
+
         return .{
             .center1 = center1,
             .radius = radius,
             .mat = mat,
             .is_moving = true,
             .center_vec = center2 - center1,
+            .bbox = bbox,
         };
     }
 
@@ -88,16 +100,22 @@ pub const Sphere = struct {
 
         return true;
     }
+
+    fn bounding_box(self: *const Sphere) aabb.Aabb {
+        return self.bbox;
+    }
 };
 
 pub const ObjectList = struct {
     objects: std.ArrayList(ObjectFactory.ObjectHandle),
     object_factory: *const ObjectFactory,
+    bbox: aabb.Aabb,
 
     pub fn init(allocator: std.mem.Allocator, object_factory: *const ObjectFactory) ObjectList {
         return .{
             .objects = std.ArrayList(ObjectFactory.ObjectHandle).init(allocator),
             .object_factory = object_factory,
+            .bbox = aabb.Aabb.init_default(),
         };
     }
 
@@ -107,6 +125,8 @@ pub const ObjectList = struct {
 
     pub fn add(self: *ObjectList, object: ObjectFactory.ObjectHandle) !void {
         try self.objects.append(object);
+        const new_bbox = aabb.Aabb.init_with_aabbs(&self.bbox, &self.object_factory.bounding_box(object));
+        self.bbox = new_bbox;
     }
 
     pub fn intersect(self: *const ObjectList, ray: *const math.ray.Ray3, ray_t: math.interval.Interval, rec: *HitRecord) bool {
@@ -130,6 +150,10 @@ pub const ObjectList = struct {
 
         return hit_anything;
     }
+
+    pub fn bounding_box(self: *const ObjectList) aabb.Aabb {
+        return self.bbox;
+    }
 };
 
 pub const ObjectFactory = struct {
@@ -137,8 +161,9 @@ pub const ObjectFactory = struct {
     /// ObjectList needs this.
     allocator: std.mem.Allocator,
 
-    const Data = union(enum) {
+    pub const Data = union(enum) {
         sphere: Sphere,
+        bvh_node: bvh.BvhNode,
     };
 
     pub const ObjectHandle = struct {
@@ -172,9 +197,48 @@ pub const ObjectFactory = struct {
         return .{ .index = sphere_index };
     }
 
+    pub fn create_BvhNode_with_list(self: *ObjectFactory, list: *const ObjectList) !ObjectHandle {
+        const bvh_node = try bvh.BvhNode.init_with_list(self, list);
+        const bvh_node_index = self.objects.items.len;
+        const bvh_data = Data{ .bvh_node = bvh_node };
+        try self.objects.append(bvh_data);
+
+        return .{ .index = bvh_node_index };
+    }
+
+    pub fn create_BvhNode_with_start_end(
+        self: *ObjectFactory,
+        src_objects: *const std.ArrayList(ObjectFactory.ObjectHandle),
+        start: usize,
+        end: usize,
+    ) !ObjectHandle {
+        const bvh_node = try bvh.BvhNode.init_with_start_end(self, src_objects, start, end);
+        const bvh_node_index = self.objects.items.len;
+        const bvh_data = Data{ .bvh_node = bvh_node };
+        try self.objects.append(bvh_data);
+
+        return .{ .index = bvh_node_index };
+    }
+
     pub fn intersect(self: *const ObjectFactory, object_handle: ObjectHandle, ray: *const math.ray.Ray3, ray_t: math.interval.Interval, rec: *HitRecord) bool {
+        //std.debug.print("Intersecting index {}", .{object_handle.index});
+        //        switch (self.objects.items[object_handle.index]) {
+        //            Data.sphere => {},
+        //            Data.bvh_node => {
+        //                std.debug.print("Intercting bvh node at index {}", .{object_handle.index});
+        //            },
+        //        }
+
         return switch (self.objects.items[object_handle.index]) {
             Data.sphere => |*sp| sp.intersect(ray, ray_t, rec),
+            Data.bvh_node => |*bvh_node| bvh_node.intersect(ray, ray_t, rec),
+        };
+    }
+
+    pub fn bounding_box(self: *const ObjectFactory, object_handle: ObjectHandle) aabb.Aabb {
+        return switch (self.objects.items[object_handle.index]) {
+            Data.sphere => |*sp| sp.bounding_box(),
+            Data.bvh_node => |*bvh_node| bvh_node.bounding_box(),
         };
     }
 };

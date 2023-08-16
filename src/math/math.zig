@@ -12,6 +12,11 @@ pub fn deg_to_rad(degrees: f64) f64 {
     return @call(.always_inline, std.math.degreesToRadians, .{ f64, degrees });
 }
 
+/// Returns a random i32 in the range [0, max].
+pub inline fn random_i32_range_inclusive(min: i32, max: i32) i32 {
+    return min + prng.random().intRangeAtMost(i32, min, max);
+}
+
 /// Returns a random f64 in the range [0, 1).
 pub inline fn random_f64() f64 {
     return prng.random().float(f64);
