@@ -7,8 +7,6 @@ const Lambertian = struct {
     albedo: color.Color3,
 
     fn scatter(self: *const Lambertian, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
-        _ = r_in;
-
         var scatter_direction = rec.normal + math.random_unit_vector();
 
         // Catch degenerate scatter direction.
@@ -16,8 +14,7 @@ const Lambertian = struct {
             scatter_direction = rec.normal;
         }
 
-        scattered.origin = rec.p;
-        scattered.direction = scatter_direction;
+        scattered.* = math.ray.Ray3.init_with_time(rec.p, scatter_direction, r_in.time);
         attenuation.* = self.albedo;
         return true;
     }
@@ -29,9 +26,10 @@ const Metal = struct {
 
     fn scatter(self: *const Metal, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
         const reflected = math.vec.reflect_vec3(math.vec.normalize_vec3(r_in.direction), rec.normal);
-        scattered.origin = rec.p;
-        scattered.direction = reflected + math.vec.mul_scalar_vec3(self.fuzz, math.random_unit_vector());
+        scattered.* = math.ray.Ray3.init_with_time(rec.p, reflected + math.vec.mul_scalar_vec3(self.fuzz, math.random_unit_vector()), r_in.time);
+
         attenuation.* = self.albedo;
+
         return math.vec.dot_vec3(scattered.direction, rec.normal) > 0.0;
     }
 };

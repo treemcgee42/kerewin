@@ -127,7 +127,7 @@ pub const Camera = struct {
         };
 
         if (world.intersect(r, math.interval.Interval{ .min = 0.001, .max = math.infinity }, &rec)) {
-            var scattered = math.ray.Ray3{ .origin = rec.p, .direction = math.vec.Vec3{ 0.0, 0.0, 0.0 } };
+            var scattered = math.ray.Ray3.init_without_time(rec.p, math.vec.Vec3{ 0.0, 0.0, 0.0 });
             var attenuation = color.Color3{ 0.0, 0.0, 0.0 };
 
             if (material_system.scatter(rec.mat, r, &rec, &attenuation, &scattered)) {
@@ -163,7 +163,9 @@ pub const Camera = struct {
             ray_origin = self.center;
         }
         const ray_direction = pixel_sample - ray_origin;
-        return math.ray.Ray3{ .origin = ray_origin, .direction = ray_direction };
+        const ray_time = math.random_f64();
+
+        return math.ray.Ray3{ .origin = ray_origin, .direction = ray_direction, .time = ray_time };
     }
 
     pub fn render(self: *const Camera, world: *object.ObjectList, writer: anytype) !void {

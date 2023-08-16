@@ -24,12 +24,43 @@ pub const HitRecord = struct {
 };
 
 pub const Sphere = struct {
-    center: math.vec.Point3,
+    // Center at t=0.
+    center1: math.vec.Point3,
     radius: f64,
     mat: MaterialHandle,
+    is_moving: bool,
+    center_vec: math.vec.Vec3,
+
+    fn init_stationary(center: math.vec.Point3, radius: f64, mat: MaterialHandle) Sphere {
+        return .{
+            .center1 = center,
+            .radius = radius,
+            .mat = mat,
+            .is_moving = false,
+            .center_vec = math.vec.Vec3{ 0.0, 0.0, 0.0 },
+        };
+    }
+
+    fn init_moving(center1: math.vec.Point3, center2: math.vec.Point3, radius: f64, mat: MaterialHandle) Sphere {
+        return .{
+            .center1 = center1,
+            .radius = radius,
+            .mat = mat,
+            .is_moving = true,
+            .center_vec = center2 - center1,
+        };
+    }
+
+    pub fn get_center(self: *const Sphere, t: f64) math.vec.Point3 {
+        return self.center1 + math.vec.mul_scalar_vec3(t, self.center_vec);
+    }
 
     fn intersect(self: *const Sphere, ray: *const math.ray.Ray3, ray_t: math.interval.Interval, rec: *HitRecord) bool {
-        const oc = ray.origin - self.center;
+        var center = self.center1;
+        if (self.is_moving) {
+            center = self.get_center(ray.time);
+        }
+        const oc = ray.origin - center;
         const a = math.vec.length_squared_vec3(ray.direction);
         const half_b = math.vec.dot_vec3(oc, ray.direction);
         const c = math.vec.length_squared_vec3(oc) - self.radius * self.radius;
@@ -51,7 +82,7 @@ pub const Sphere = struct {
 
         rec.t = root;
         rec.p = ray.at(root);
-        const outward_normal = math.vec.div_vec3_scalar((rec.p - self.center), self.radius);
+        const outward_normal = math.vec.div_vec3_scalar((rec.p - center), self.radius);
         rec.set_face_normal(ray, outward_normal);
         rec.mat = self.mat;
 
@@ -127,7 +158,15 @@ pub const ObjectFactory = struct {
 
     pub fn create_Sphere(self: *ObjectFactory, center: math.vec.Point3, radius: f64, mat: MaterialHandle) !ObjectHandle {
         const sphere_index = self.objects.items.len;
-        const sp = Data{ .sphere = Sphere{ .center = center, .radius = radius, .mat = mat } };
+        const sp = Data{ .sphere = Sphere.init_stationary(center, radius, mat) };
+        try self.objects.append(sp);
+
+        return .{ .index = sphere_index };
+    }
+
+    pub fn create_Sphere_moving(self: *ObjectFactory, center1: math.vec.Point3, center2: math.vec.Point3, radius: f64, mat: MaterialHandle) !ObjectHandle {
+        const sphere_index = self.objects.items.len;
+        const sp = Data{ .sphere = Sphere.init_moving(center1, center2, radius, mat) };
         try self.objects.append(sp);
 
         return .{ .index = sphere_index };

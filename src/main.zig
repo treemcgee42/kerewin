@@ -45,7 +45,8 @@ pub fn main() !void {
                     // diffuse
                     const albedo = math.random_vec3() * math.random_vec3();
                     const sphere_material = try material_factory.create_Lambertian(albedo);
-                    const sphere = try object_factory.create_Sphere(center, 0.2, sphere_material);
+                    const center2 = center + math.vec.Vec3{ 0.0, math.random_f64_range(0.0, 0.5), 0.0 };
+                    const sphere = try object_factory.create_Sphere_moving(center, center2, 0.2, sphere_material);
                     try world.add(sphere);
                 } else if (choose_mat < 0.95) {
                     // metal
@@ -79,8 +80,8 @@ pub fn main() !void {
     // Camera
     const cam_init_options: camera.Camera.InitParams = .{
         .aspect_ratio = 16.0 / 9.0,
-        .image_width = 1200,
-        .samples_per_pixel = 10,
+        .image_width = 400,
+        .samples_per_pixel = 100,
         .max_depth = 50,
 
         .vfov = 20.0,
