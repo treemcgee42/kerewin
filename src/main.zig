@@ -4,6 +4,7 @@ const color = @import("color.zig");
 const object = @import("object.zig");
 const camera = @import("camera.zig");
 const material = @import("material.zig");
+const obj = @import("objloader.zig");
 
 pub fn main() !void {
     // stdout is for the actual output of your application, for example if you
