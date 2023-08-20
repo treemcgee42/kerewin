@@ -2,12 +2,17 @@ const std = @import("std");
 const math = @import("math/math.zig");
 const Color3 = @import("color.zig").Color3;
 const KwImage = @import("kw_image.zig").KwImage;
+const Perlin = @import("perlin.zig").Perlin;
 
 const SolidColor = struct {
     color_value: math.vec.Vec3,
 
     pub inline fn init_rgb(color: Color3) SolidColor {
         return .{ .color_value = color };
+    }
+
+    pub fn deinit(self: *SolidColor) void {
+        _ = self;
     }
 };
 
@@ -34,6 +39,10 @@ const CheckerTexture = struct {
         };
     }
 
+    pub fn deinit(self: *CheckerTexture) void {
+        _ = self;
+    }
+
     pub fn value(self: *const CheckerTexture, system: *const TextureSystem, u: f64, v: f64, p: math.vec.Vec3) math.vec.Vec3 {
         const x_int: i32 = @intFromFloat(@floor(self.inv_scale * p[0]));
         const y_int: i32 = @intFromFloat(@floor(self.inv_scale * p[1]));
@@ -54,6 +63,10 @@ const ImageTexture = struct {
     pub fn init_filename(filename: []const u8, allocator: std.mem.Allocator) !ImageTexture {
         const image = try KwImage.init_filename(filename, allocator);
         return .{ .image = image };
+    }
+
+    pub fn deinit(self: *ImageTexture) void {
+        self.image.deinit();
     }
 
     pub fn value(self: *const ImageTexture, u: f64, v: f64, p: math.vec.Point3) Color3 {
@@ -81,6 +94,35 @@ const ImageTexture = struct {
     }
 };
 
+const NoiseTexture = struct {
+    noise: Perlin,
+    scale: f64 = 1.0,
+
+    pub fn init(allocator: std.mem.Allocator) !NoiseTexture {
+        const noise = try Perlin.init(allocator);
+        return .{ .noise = noise };
+    }
+
+    pub fn init_scale(allocator: std.mem.Allocator, scale: f64) !NoiseTexture {
+        const noise = try Perlin.init(allocator);
+        return .{
+            .noise = noise,
+            .scale = scale,
+        };
+    }
+
+    pub fn deinit(self: *NoiseTexture) void {
+        self.noise.deinit();
+    }
+
+    pub fn value(self: *const NoiseTexture, u: f64, v: f64, p: math.vec.Point3) Color3 {
+        _ = v;
+        _ = u;
+        const s = math.vec.mul_scalar_vec3(self.scale, p);
+        return math.vec.mul_scalar_vec3(0.5 * (1.0 + std.math.sin(s[2] + 10.0 * self.noise.turb(s, 7))), Color3{ 1.0, 1.0, 1.0 });
+    }
+};
+
 pub const TextureSystem = struct {
     data: std.ArrayList(Data),
 
@@ -88,6 +130,7 @@ pub const TextureSystem = struct {
         solid_color: SolidColor,
         checker_texture: CheckerTexture,
         image_texture: ImageTexture,
+        noise_texture: NoiseTexture,
     };
 
     pub const TextureHandle = struct {
@@ -101,6 +144,17 @@ pub const TextureSystem = struct {
     }
 
     pub fn deinit(self: *TextureSystem) void {
+        var i: usize = 0;
+        while (i < self.data.items.len) : (i += 1) {
+            var data = self.data.items[i];
+            switch (data) {
+                .solid_color => |*sc| sc.deinit(),
+                .checker_texture => |*ct| ct.deinit(),
+                .image_texture => |*it| it.deinit(),
+                .noise_texture => |*nt| nt.deinit(),
+            }
+        }
+
         self.data.deinit();
     }
 
@@ -127,6 +181,22 @@ pub const TextureSystem = struct {
         return .{ .data_idx = data_idx };
     }
 
+    pub fn create_NoiseTexture(self: *TextureSystem, allocator: std.mem.Allocator) !TextureHandle {
+        const d = try NoiseTexture.init(allocator);
+        try self.data.append(Data{ .noise_texture = d });
+        const data_idx = self.data.items.len - 1;
+
+        return .{ .data_idx = data_idx };
+    }
+
+    pub fn create_NoiseTexture_scale(self: *TextureSystem, allocator: std.mem.Allocator, scale: f64) !TextureHandle {
+        const d = try NoiseTexture.init_scale(allocator, scale);
+        try self.data.append(Data{ .noise_texture = d });
+        const data_idx = self.data.items.len - 1;
+
+        return .{ .data_idx = data_idx };
+    }
+
     pub fn value(self: *const TextureSystem, handle: TextureHandle, u: f64, v: f64, p: math.vec.Vec3) math.vec.Vec3 {
         const data = self.data.items[handle.data_idx];
 
@@ -134,6 +204,7 @@ pub const TextureSystem = struct {
             .solid_color => |*sc| sc.color_value,
             .checker_texture => |*ct| CheckerTexture.value(ct, self, u, v, p),
             .image_texture => |*it| ImageTexture.value(it, u, v, p),
+            .noise_texture => |*nt| NoiseTexture.value(nt, u, v, p),
         };
     }
 };

@@ -152,6 +152,39 @@ fn earth(
     };
 }
 
+fn two_perlin_spheres(
+    world: *object.ObjectList,
+    object_factory: *object.ObjectFactory,
+    material_factory: *material.MaterialSystem,
+    texture_factory: *texture.TextureSystem,
+    allocator: std.mem.Allocator,
+) !camera.Camera.InitParams {
+    const pertext = try texture_factory.create_NoiseTexture_scale(allocator, 4.0);
+    const mat = try material_factory.create_Lambertian_texture(pertext);
+
+    const s1 = try object_factory.create_Sphere(math.vec.Point3{ 0.0, -1000.0, 0.0 }, 1000.0, mat);
+    try world.add(s1);
+    const s2 = try object_factory.create_Sphere(math.vec.Point3{ 0.0, 2.0, 0.0 }, 2.0, mat);
+    try world.add(s2);
+
+    return .{
+        .aspect_ratio = 16.0 / 9.0,
+        .image_width = 400,
+        .samples_per_pixel = 100,
+        .max_depth = 50,
+
+        .vfov = 20.0,
+        .look_from = math.vec.Point3{ 13.0, 2.0, 3.0 },
+        .look_at = math.vec.Point3{ 0.0, 0.0, 0.0 },
+        .v_up = math.vec.Vec3{ 0.0, 1.0, 0.0 },
+
+        .defocus_angle = 0,
+
+        .material_system = material_factory,
+        .texture_system = texture_factory,
+    };
+}
+
 pub fn main() !void {
     var timer = try std.time.Timer.start();
 
@@ -181,10 +214,11 @@ pub fn main() !void {
     var world = object.ObjectList.init(allocator, &object_factory);
     // defer world.deinit();
 
-    const cam_init_options = switch (3) {
+    const cam_init_options = switch (4) {
         1 => try random_spheres(&world, &object_factory, &material_factory, &texture_factory),
         2 => try two_spheres(&world, &object_factory, &material_factory, &texture_factory),
         3 => try earth(&world, &object_factory, &material_factory, &texture_factory, allocator),
+        4 => try two_perlin_spheres(&world, &object_factory, &material_factory, &texture_factory, allocator),
         else => unreachable,
     };
 

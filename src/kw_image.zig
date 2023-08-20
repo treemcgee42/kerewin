@@ -34,7 +34,7 @@ pub const KwImage = struct {
     }
 
     pub fn deinit(self: *KwImage) void {
-        c.stbi_image_free(self.data);
+        c.stbi_image_free(self.data.?.ptr);
     }
 
     /// Loads image data from the given filename. Returns true if the image was
