@@ -3,6 +3,7 @@ const color = @import("color.zig");
 const object = @import("object.zig");
 const material = @import("material.zig");
 const std = @import("std");
+const TextureSystem = @import("texture.zig").TextureSystem;
 
 pub const Camera = struct {
     aspect_ratio: f64,
@@ -30,6 +31,7 @@ pub const Camera = struct {
     defocus_disk_v: math.vec.Vec3, // Defocus disk vertical radius.
 
     material_system: *material.MaterialSystem,
+    texture_system: *TextureSystem,
 
     pub const InitParams = struct {
         aspect_ratio: f64 = 1.0,
@@ -46,6 +48,7 @@ pub const Camera = struct {
         focus_dist: f64 = 10.0, // Distance from camera look_from point to plane of perfect focus.
 
         material_system: *material.MaterialSystem,
+        texture_system: *TextureSystem,
     };
 
     pub fn init(params: InitParams) Camera {
@@ -110,10 +113,11 @@ pub const Camera = struct {
             .defocus_disk_v = defocus_disk_v,
 
             .material_system = params.material_system,
+            .texture_system = params.texture_system,
         };
     }
 
-    pub fn ray_color(r: *const math.ray.Ray3, depth: u32, world: *object.ObjectList, material_system: *material.MaterialSystem) color.Color3 {
+    pub fn ray_color(texture_system: *const TextureSystem, r: *const math.ray.Ray3, depth: u32, world: *object.ObjectList, material_system: *material.MaterialSystem) color.Color3 {
         if (depth <= 0) {
             return color.Color3{ 0.0, 0.0, 0.0 };
         }
@@ -130,8 +134,8 @@ pub const Camera = struct {
             var scattered = math.ray.Ray3.init_without_time(rec.p, math.vec.Vec3{ 0.0, 0.0, 0.0 });
             var attenuation = color.Color3{ 0.0, 0.0, 0.0 };
 
-            if (material_system.scatter(rec.mat, r, &rec, &attenuation, &scattered)) {
-                return attenuation * ray_color(&scattered, depth - 1, world, material_system);
+            if (material_system.scatter(texture_system, rec.mat, r, &rec, &attenuation, &scattered)) {
+                return attenuation * ray_color(texture_system, &scattered, depth - 1, world, material_system);
             }
 
             return color.Color3{ 0.0, 0.0, 0.0 };
@@ -183,7 +187,7 @@ pub const Camera = struct {
                 var s: u32 = 0;
                 while (s < self.samples_per_pixel) : (s += 1) {
                     const r = self.get_ray(@intCast(i), @intCast(j));
-                    pixel_color += ray_color(&r, self.max_depth, world, self.material_system);
+                    pixel_color += ray_color(self.texture_system, &r, self.max_depth, world, self.material_system);
                 }
 
                 try color.write_color3(pixel_color, self.samples_per_pixel, writer);

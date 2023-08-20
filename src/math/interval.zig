@@ -4,6 +4,13 @@ pub const Interval = struct {
     min: f64,
     max: f64,
 
+    pub fn init_with_floats(min: f64, max: f64) Interval {
+        return Interval{
+            .min = min,
+            .max = max,
+        };
+    }
+
     pub fn init_with_intervals(a: Interval, b: Interval) Interval {
         return Interval{
             .min = @min(a.min, b.min),

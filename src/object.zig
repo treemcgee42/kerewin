@@ -10,6 +10,8 @@ pub const HitRecord = struct {
     /// normal is stored in the `is_front_face` field.
     normal: math.vec.Vec3,
     t: f64,
+    u: f64 = 0.0,
+    v: f64 = 0.0,
     /// Indicates whether the normal is pointing inside the object or outside.
     is_front_face: bool,
     mat: MaterialHandle,
@@ -96,6 +98,7 @@ pub const Sphere = struct {
         rec.p = ray.at(root);
         const outward_normal = math.vec.div_vec3_scalar((rec.p - center), self.radius);
         rec.set_face_normal(ray, outward_normal);
+        get_sphere_uv(outward_normal, &rec.u, &rec.v);
         rec.mat = self.mat;
 
         return true;
@@ -103,6 +106,23 @@ pub const Sphere = struct {
 
     fn bounding_box(self: *const Sphere) aabb.Aabb {
         return self.bbox;
+    }
+
+    /// ## Parameters:
+    /// - `p`: Point on the unit sphere.
+    /// - `u`: Returned value [0,1] of angle around the Y axis from X=-1.
+    /// - `v`: Returned value [0,1] of angle from Y=-1 to Y=+1.
+    ///
+    /// ## Examples:
+    /// - <1, 0, 0> -> <0.5, 0.5>       <-1, 0, 0> -> <0.0, 0.5>
+    /// - <0, 1, 0> -> <0.5, 1.0>       <0, -1, 0> -> <0.5, 0.0>
+    /// - <0, 0, 1> -> <0.25, 0.5>       <0, 0, -1> -> <0.75, 0.5>
+    fn get_sphere_uv(p: math.vec.Vec3, u: *f64, v: *f64) void {
+        const theta = std.math.acos(-p[1]);
+        const phi = std.math.atan2(f64, -p[2], p[0]) + std.math.pi;
+
+        u.* = phi / (2.0 * std.math.pi);
+        v.* = theta / std.math.pi;
     }
 };
 

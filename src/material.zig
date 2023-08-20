@@ -2,11 +2,22 @@ const std = @import("std");
 const color = @import("color.zig");
 const math = @import("math/math.zig");
 const HitRecord = @import("object.zig").HitRecord;
+const TextureSystem = @import("texture.zig").TextureSystem;
+const TextureHandle = @import("texture.zig").TextureSystem.TextureHandle;
 
 const Lambertian = struct {
-    albedo: color.Color3,
+    albedo: TextureHandle,
 
-    fn scatter(self: *const Lambertian, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
+    fn init_color(texture_system: *TextureSystem, albedo: color.Color3) !Lambertian {
+        const a = try texture_system.create_SolidColor(albedo);
+        return .{ .albedo = a };
+    }
+
+    fn init_texture(albedo: TextureHandle) Lambertian {
+        return .{ .albedo = albedo };
+    }
+
+    fn scatter(self: *const Lambertian, texture_system: *const TextureSystem, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
         var scatter_direction = rec.normal + math.random_unit_vector();
 
         // Catch degenerate scatter direction.
@@ -15,7 +26,7 @@ const Lambertian = struct {
         }
 
         scattered.* = math.ray.Ray3.init_with_time(rec.p, scatter_direction, r_in.time);
-        attenuation.* = self.albedo;
+        attenuation.* = texture_system.value(self.albedo, rec.u, rec.v, rec.p);
         return true;
     }
 };
@@ -90,10 +101,17 @@ pub const MaterialSystem = struct {
         self.data.deinit();
     }
 
-    pub fn create_Lambertian(self: *MaterialSystem, albedo: color.Color3) !MaterialHandle {
-        const data_index = self.data.items.len;
-        const lamb = Data{ .lambertian = Lambertian{ .albedo = albedo } };
-        try self.data.append(lamb);
+    pub fn create_Lambertian(self: *MaterialSystem, texture_system: *TextureSystem, albedo: color.Color3) !MaterialHandle {
+        const data = try Lambertian.init_color(texture_system, albedo);
+        try self.data.append(Data{ .lambertian = data });
+        const data_index = self.data.items.len - 1;
+
+        return .{ .index = data_index };
+    }
+
+    pub fn create_Lambertian_texture(self: *MaterialSystem, texture: TextureHandle) !MaterialHandle {
+        try self.data.append(Data{ .lambertian = Lambertian.init_texture(texture) });
+        const data_index = self.data.items.len - 1;
 
         return .{ .index = data_index };
     }
@@ -113,9 +131,9 @@ pub const MaterialSystem = struct {
         return .{ .index = data_index };
     }
 
-    pub fn scatter(self: *const MaterialSystem, material: MaterialHandle, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
+    pub fn scatter(self: *const MaterialSystem, texture_system: *const TextureSystem, material: MaterialHandle, r_in: *const math.ray.Ray3, rec: *const HitRecord, attenuation: *color.Color3, scattered: *math.ray.Ray3) bool {
         return switch (self.data.items[material.index]) {
-            Data.lambertian => |*lamb| lamb.scatter(r_in, rec, attenuation, scattered),
+            Data.lambertian => |*lamb| lamb.scatter(texture_system, r_in, rec, attenuation, scattered),
             Data.metal => |*met| met.scatter(r_in, rec, attenuation, scattered),
             Data.dielectric => |*die| die.scatter(r_in, rec, attenuation, scattered),
         };

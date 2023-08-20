@@ -24,6 +24,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.addCSourceFile(.{
+        .file = std.build.LazyPath.relative("stb_image/stb_image_impl.c"),
+        .flags = &[_][]const u8{"-std=c99"},
+    });
+
+    exe.addIncludePath(std.build.LazyPath.relative("stb_image"));
+
+    exe.linkSystemLibrary("c");
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
