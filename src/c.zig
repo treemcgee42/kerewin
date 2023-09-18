@@ -1,5 +1,11 @@
-pub usingnamespace @cImport({
-    @cDefine("STBI_FAILURE_USERMSG", "");
-    @cDefine("STBI_NO_STDIO", "");
-    @cInclude("stb_image.h");
-});
+pub const raylib = struct {
+    pub usingnamespace @cImport({
+        @cInclude("raylib.h");
+    });
+};
+
+pub const raygui = struct {
+    pub usingnamespace @cImport({
+        @cInclude("raygui.h");
+    });
+};

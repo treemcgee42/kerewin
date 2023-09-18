@@ -24,14 +24,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.addCSourceFile(.{
-        .file = std.build.LazyPath.relative("stb_image/stb_image_impl.c"),
-        .flags = &[_][]const u8{"-std=c99"},
-    });
+    exe.addObjectFile(std.build.LazyPath.relative("external/raylib/zig-out/lib/libraylib.a"));
+    exe.addIncludePath(std.build.LazyPath.relative("external/raylib/zig-out/include"));
+    exe.addIncludePath(std.build.LazyPath.relative("external/raygui/src"));
 
-    exe.addIncludePath(std.build.LazyPath.relative("stb_image"));
-
+    // All necessary for raylib.
     exe.linkSystemLibrary("c");
+    // Macos
+    exe.linkFramework("OpenGL");
+    exe.linkFramework("Cocoa");
+    exe.linkFramework("IOKit");
+    exe.linkFramework("CoreAudio");
+    exe.linkFramework("CoreVideo");
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

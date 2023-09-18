@@ -4,6 +4,8 @@ const object = @import("object.zig");
 const material = @import("material.zig");
 const std = @import("std");
 const TextureSystem = @import("texture.zig").TextureSystem;
+const raylib = @import("./c.zig").raylib;
+const PartialRender = @import("./PartialRender.zig");
 
 pub const Camera = struct {
     aspect_ratio: f64,
@@ -172,26 +174,30 @@ pub const Camera = struct {
         return math.ray.Ray3{ .origin = ray_origin, .direction = ray_direction, .time = ray_time };
     }
 
-    pub fn render(self: *const Camera, world: *object.ObjectList, writer: anytype) !void {
-        try writer.print("P3\n{} {}\n255\n", .{ self.image_width, self.image_height });
+    pub fn render(self: *Camera, world: *object.ObjectList, partial_render: *PartialRender) !void {
+        partial_render.max_progress = @as(f32, @floatFromInt(self.samples_per_pixel * self.image_height));
 
-        var j: usize = 0;
-        while (j < self.image_height) : (j += 1) {
-            const remaining_scanlines = self.image_height - j;
-            const percentage_done = 100.0 * @as(f32, @floatFromInt(j)) / @as(f32, @floatFromInt(self.image_height));
-            std.debug.print("\r[{d:.0}%] Scanlines remaining: {}", .{ percentage_done, remaining_scanlines });
+        var s: u32 = 0;
+        while (s < self.samples_per_pixel) : (s += 1) {
+            // Spin until preview has been read.
+            while (partial_render.sync.should_read) {
+                continue;
+            }
 
-            var i: usize = 0;
-            while (i < self.image_width) : (i += 1) {
-                var pixel_color = color.Color3{ 0.0, 0.0, 0.0 };
-                var s: u32 = 0;
-                while (s < self.samples_per_pixel) : (s += 1) {
-                    const r = self.get_ray(@intCast(i), @intCast(j));
-                    pixel_color += ray_color(self.texture_system, &r, self.max_depth, world, self.material_system);
+            var j: u32 = 0;
+            while (j < self.image_height) : (j += 1) {
+                var i: u32 = 0;
+                while (i < self.image_width) : (i += 1) {
+                    const r = self.get_ray(i, j);
+                    const pixel_color = ray_color(self.texture_system, &r, self.max_depth, world, self.material_system);
+                    partial_render.add_equal_pixel_color(i, j, pixel_color);
                 }
 
-                try color.write_color3(pixel_color, self.samples_per_pixel, writer);
+                partial_render.current_progress += 1.0;
             }
+
+            partial_render.completed_samples += 1;
+            partial_render.sync.should_read = true;
         }
 
         std.debug.print("\rDone.\n", .{});
